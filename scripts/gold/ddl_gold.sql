@@ -11,6 +11,7 @@ Usage
    The views can be queried directly for analytics and reporting
 
 */
+----VIEW 1------------
 --==================================================================
 --Create Dimension: gold.dim_customers
 -- ==================================================================
@@ -41,63 +42,11 @@ LEFT JOIN silver.erp_cust_az12 ca
 ON ci.cst_key = ca.cid
 LEFT JOIN silver.erp_loc_a101 la
 ON ci.cst_key = la.cid
-
-------------------------------------------
-  -------------Testing Purpose ----------
-------------------------------------------
--- Eliminate the gender columns 
-select DISTINCT
-	ci.cst_gender,
-	ca.gen,
-	CASE WHEN ci.cst_gender != 'n/a' THEN ci.cst_gender --- CRM is the Master for Gender Info
-	ELSE COALESCE(ca.gen, 'n/a')
-	END AS new_gen
-from silver.crm_cust_info ci
-LEFT JOIN silver.erp_cust_az12 ca
-ON ci.cst_key = ca.cid
-LEFT JOIN silver.erp_loc_a101 la
-ON ci.cst_key = la.cid
-
-select 
-	pn.prd_id,
-	pn.cat_id,
-	pn.prd_key,
-	pn.prd_nm,
-	pn.prd_cost,
-	pn.prd_line,
-	pn.prd_start_dt,
-	pc.cat,
-	pc.subcat,
-	pc.maintenance
-FROM silver.crm_prd_info pn
-LEFT JOIN silver.erp_px_cat_g1v2 pc
-ON pn.cat_id = pc.id
-where prd_end_dt IS NULL  -- Filter our all historical data
-
---Check quality and uniqueness 
-SELECT prd_key, COUNT(*) FROM (
-select 
-	pn.prd_id,
-	pn.prd_key,
-	pn.prd_nm,
-	pn.cat_id,
-	pc.cat,
-	pc.subcat,
-	pc.maintenance,
-	pn.prd_cost,
-	pn.prd_line,
-	pn.prd_start_dt
-FROM silver.crm_prd_info pn
-LEFT JOIN silver.erp_px_cat_g1v2 pc
-ON pn.cat_id = pc.id
-where prd_end_dt IS NULL  -- Filter our all historical data
-)t GROUP BY prd_key HAVING COUNT(*) > 1
-
--- Give friendly names and make in correct order
--- Add surrogate key for the same
+GO
 
 
-/*-- VIEW 2
+
+/*-- VIEW 2 -------------
 ========================================
 
 -- Create Dimension: gold.dim_products
@@ -124,17 +73,8 @@ select
 FROM silver.crm_prd_info pn
 LEFT JOIN silver.erp_px_cat_g1v2 pc
 ON pn.cat_id = pc.id
-where prd_end_dt IS NULL  -- Filter our all historical data
-
-
-------------------------------------------
-  -------------Testing Purpose ----------
-------------------------------------------
-Select * from gold.dim_product;
-
-select * from gold.dim_customers;
-
-select * from silver.crm_sales_details 
+where prd_end_dt IS NULL -- Filter our all historical data
+GO
 
 /*-- VIEW 3
 ========================================
@@ -146,20 +86,22 @@ IF OBJECT_ID('gold.fact_sales', 'V') IS NOT NULL
   DROP VIEW gold.fact_sales;
 GO
 
-CREATE OR ALTER VIEW gold.fact_sales as 
+CREATE OR ALTER VIEW gold.fact_sales as  
+
+create or alter view gold.fact_sales as 
 select 
 	sd.sls_ord_num as order_number,
 	pr.prod_key,
-	cu.customer_id,
+	cu.customer_key,
 	sd.sls_order_dt as order_date,
 	sd.sls_ship_dt as ship_date,
 	sd.sls_due_dt as due_date,
 	sd.sls_sales as sales_amount,
 	sd.sls_quantity as quantity,
 	sd.sls_price as price
-FROM silver.crm_sales_details sd
-LEFT JOIN gold.dim_product pr
-ON sd.sls_prd_key = pr.product_number
-LEFT JOIN gold.dim_customers cu
-ON sd.sls_cust_id = cu.customer_id
+	FROM silver.crm_sales_details sd
+	LEFT JOIN gold.dim_product pr
+	ON sd.sls_prd_key = pr.product_number
+	LEFT JOIN gold.dim_customers cu
+	ON sd.sls_cust_id = cu.customer_id
 GO
